@@ -1,0 +1,312 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Batch / Post Date")
+Gui.Form..Size(5685,2355)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form.lbl1.Create(Label,"Batch Number",True,1290,255,0,930,345,True,0,"Arial",8,-2147483633,0)
+Gui.Form.txtBatch.Create(TextBox,"",True,1935,300,0,2460,255,True,0,"Arial",8,-2147483643,1)
+Gui.Form.txtBatch.TabStop(True)
+Gui.Form.txtBatch.TabIndex(2)
+Gui.Form.lbl2.Create(Label,"Post Date",True,1020,255,0,930,870,True,0,"Arial",8,-2147483633,0)
+Gui.Form.dtp1.Create(DatePicker)
+Gui.Form.dtp1.Size(1935,285)
+Gui.Form.dtp1.Position(2460,765)
+Gui.Form.dtp1.TabStop(True)
+Gui.Form.dtp1.TabIndex(3)
+Gui.Form.CreateBatch.Create(Button)
+Gui.Form.CreateBatch.Size(1395,375)
+Gui.Form.CreateBatch.Position(3930,1320)
+Gui.Form.CreateBatch.Caption("Create Batch")
+Gui.Form.CreateBatch.Event(Click,CreateBatch)
+Gui.Form.CreateBatch.TabStop(True)
+Gui.Form.CreateBatch.TabIndex(1)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+'DR H  8/20/2018
+'This program will read in a csv file and create an AP Batch
+'Cox Machine, Inc.
+
+'Function.Global.General.ReadOptionCommon(ID, suffix, sequence, data type, default value, return)
+'"""""""""""""""""""""""""""""""THIS IS WHAT WORKS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+'V.Local.sParams.Declare(string)
+'F.Intrinsic.String.Build("APBATCH_INVACR{0}.txt!*!{1}!*!{2}!*!{3}","NA",V.Caller.User,"P875","20191129",V.Local.sParams)
+'F.Global.General.CallWrapperSync(2110,V.Local.sParams)
+''"""""""""""""""""""""""""""""""THIS IS WHAT WORKS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+
+V.Local.iRet.Declare
+V.Local.sRet.Declare
+V.Local.ssql.Declare
+'First check to make sure the user wanted to run this:
+F.Intrinsic.UI.Msgbox("Import File?", "AP Batch Upload", 4,V.Local.iRet)
+F.Intrinsic.Control.If(V.Local.iRet, =, 7)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+'set the next batch number
+V.Local.ssql.Set("Select top 1 Right(BATCH, 4) as Batch From GL_BATCH_LOG where Left(Batch,1)= 'P' order by Right(BATCH, 4) desc")
+Function.ODBC.Connection!con.OpenCompanyConnection
+Function.ODBC.Connection!con.ExecuteAndReturn(V.Local.ssql, V.Local.iRet)
+Function.ODBC.Connection!con.Close
+F.Intrinsic.Math.Add(V.Local.iRet, 1, V.Local.iRet)
+F.Intrinsic.String.LPad(V.Local.iRet, "0", 4,V.Local.sRet)
+F.Intrinsic.String.Build("P{0}", V.Local.sRet, V.Local.sRet)
+GUI.Form.txtBatch.Text(V.Local.sRet)
+GUI.Form..Show
+
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+  F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.CreateBatch.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+GUI.Form..Visible(False)
+F.Intrinsic.Control.CallSub(FileToDatatable)
+F.Intrinsic.Control.CallSub(CheckMatches)
+F.Intrinsic.Control.CallSub(OutputFile)
+F.Intrinsic.Control.CallSub(UploadBatch)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+   F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.CreateBatch.End
+
+Program.Sub.FileToDatatable.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+V.Local.iC.Declare(Long)
+V.Local..BulkDeclareString(sFile,sRet,sTypes,sFields, sdd, smm, syy)
+V.Local.bExists.Declare(Boolean, False)
+
+'customers side
+V.Local.sFile.Set("I:\Infisy\Custom\5160\AP_Import\AP_Import.csv")
+''''''''''''''''''''''''''''''''to test 
+'V.Local.sFile.Set("L:\Custom\5160\AP_Import\AP_Import.csv")
+'V.Local.sFile.Set("C:\Users\dhughes\Desktop\5160 AP Batch\AP_Import.csv")
+
+Function.Intrinsic.File.Exists(V.Local.sFile, V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists, =, False)
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.File.File2String(V.Local.sFile, V.Local.sRet )
+
+V.Local.sTypes.Set("String*!*String*!*String*!*String*!*String*!*String*!*String*!*String")
+V.Local.sFields.Set("PONo3*!*SentPOLine*!*PartNo*!*InvoiceDate*!*InvoiceNo*!*Qty*!*UnitPrice*!*BalanceDueString")
+F.Data.DataTable.CreateFromString("AP", V.Local.sRet, V.Local.sFields , V.Local.sTypes,",",V.Ambient.NewLine, TRUE)
+F.Data.DataTable.DeleteRow("AP", 0)
+F.Data.DataTable.DeleteRow("AP", V.DataTable.AP.RowCount--)
+
+
+F.Intrinsic.Control.For(V.Local.iC, 0, V.DataTable.AP.RowCount--, 1)
+	F.Intrinsic.String.Split(V.Datatable.AP(V.Local.iC).InvoiceDate!FieldValTrim, "/", V.Local.sRet)
+	F.Intrinsic.String.LPad(V.Local.sRet(0), "0", 2, V.Local.smm)
+	F.Intrinsic.String.LPad(V.Local.sRet(1), "0", 2, V.Local.sdd)
+	F.Intrinsic.String.Right(V.Local.sRet(2), 2, V.Local.syy)
+	F.Intrinsic.String.Build("{0}{1}{2}", V.Local.smm, V.Local.sdd, V.Local.syy, V.Local.sRet)
+	F.Data.DataTable.SetValue("AP", V.Local.iC, "InvoiceDate", V.Local.sRet)
+F.Intrinsic.Control.Next(V.Local.iC)
+
+
+'balance from string to float
+F.Data.DataTable.AddExpressionColumn("AP", "BalanceDue", "Float", "BalanceDueString")
+'first create to lose 0 padding
+F.Data.DataTable.AddExpressionColumn("AP", "PONo2", "Long", "PONo3")
+'then back to string
+F.Data.DataTable.AddExpressionColumn("AP", "PONo1", "String", "PONo2")
+
+F.Data.DataTable.AddExpressionColumn("AP", "PONo", "string","IIF(Len(PONo1) = 1,  '000000'+PONo1, IIF	(Len(PONo1) = 2, '00000'+PONo1,IIF(Len(PONo1) = 3, '0000'+PONo1,IIF(Len(PONo1) = 4, '000'+PONo1,IIF(Len(PONo1) = 5, '00'+PONo1,IIF(Len(PONo1) = 6, '0'+PONo1, PONo1))))))")
+
+F.Data.DataTable.AddExpressionColumn("AP", "POLine", "string","IIF(Len(TRIM(SentPOLine)) = 1,'00'+SentPOLine,IIF(Len(Trim(SentPOLine)) = 2,'0'+SentPOLine,SentPOLine))")
+'f.Data.DataTable.AddColumn("AP","POLine","String","001")
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+   F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.FileToDatatable.End
+
+Program.Sub.CheckMatches.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+V.Local.sRet.Declare(String)
+V.Local.sFilePath.Declare(String)
+V.Local.sDate.Declare(String)
+V.Local.sParams.Declare(string)
+
+Function.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataTable.CreateFromSQL("PO", "con", "Select rTrim(PURCHASE_ORDER) As PURCHASE_ORDER, RTRIM(PO_LINE) as PO_LINE, Concat(rTrim(PURCHASE_ORDER),RTRIM(PO_LINE)) as PONoLine , rTrim(PART) as PART, (EXTENDED_COST+5) As EXTENSIONPlus5, (EXTENDED_COST-5) As EXTENSIONMinus5, EXTENDED_COST, QTY_RECEIVED, VENDOR, RECEIVER_NO as RECEIVER From V_PO_RECEIVER")
+
+F.Data.Linq.Join("LeftJoin", "Datatable", "AP*!*AP",  "Datatable", "PO*!*PO", "AP.PONo=PO.PURCHASE_ORDER And AP.POLine=PO.PO_LINE","AP.PONo*!*PO.PO_LINE*!*PO.PONoLine*!*PO.PART as PartNo*!*AP.InvoiceDate*!*AP.InvoiceNo*!*AP.Qty*!*PO.EXTENDED_COST*!*PO.EXTENSIONPlus5*!*PO.EXTENSIONMinus5*!*AP.BalanceDue*!*PO.QTY_RECEIVED*!*PO.VENDOR*!*PO.RECEIVER*!*PO.PURCHASE_ORDER", "", "", "", "BATCH", True)
+
+'F.Data.DataTable.Close("PO")
+'F.Data.DataTable.Close("AP")
+
+'check invoices
+F.Data.DataTable.AddColumn("BATCH", "INVOICE", "string")
+F.Data.Dictionary.CreateFromSQL("dict","con","Select  rTrim(INVC) As InvoiceNo, rTrim(INVC) As INVOICE From AP_OPEN_BATCHES")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("BATCH", "dict", "InvoiceNo", "INVOICE")
+F.Data.Dictionary.Close("dict")
+
+'check PO in AP_open_items
+F.Data.DataTable.AddColumn("BATCH", "PURCHASE_ORDER_OP_IT", "string")
+F.Data.Dictionary.CreateFromSQL("dict","con","Select  rTrim(PURCHASE_ORDER) As PONo, rTrim(PURCHASE_ORDER) As PURCHASE_ORDER_OP_IT From AP_OPEN_ITEMS")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("BATCH", "dict", "PURCHASE_ORDER", "PURCHASE_ORDER_OP_IT")
+F.Data.Dictionary.Close("dict")
+
+'Check qyt on PO for comparison to what was received. if qty on PO greater than Qty Received then the batch upload will not work.
+F.Data.DataTable.AddColumn("BATCH", "QTY_OPEN_ONPO", "float")
+F.Data.Dictionary.CreateFromSQL("dict","con","Select  Concat(rTrim(PURCHASE_ORDER) ,Left(rTrim(Record_no),3)) As PONoLine,(Qty_Order - QTY_Received) as QTY_OPEN_ONPO From V_PO_LINES")
+F.Data.Dictionary.SetDefaultReturn("dict", 0)
+F.Data.DataTable.FillFromDictionary("BATCH", "dict", "PONoLine", "QTY_OPEN_ONPO")
+F.Data.Dictionary.Close("dict")
+
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+   F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.CheckMatches.End
+
+Program.Sub.OutputFile.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+	V.Local.sRet.Declare(String)
+	V.Local.sDate.Declare(String)
+	V.Local.sTime.Declare(String)
+	V.Local.sFilePath.Declare(String)
+	V.Local.sTitles.Declare(String)
+	
+	F.Data.DataView.Create("BATCH", "dvBATCH")
+	
+	
+	F.Data.DataTable.AddExpressionColumn("BATCH", "PriceMismatch", "String", "IIF(BalanceDue >EXTENSIONMinus5 And BalanceDue < EXTENSIONPlus5, 'N', 'Y')" )
+	F.Data.DataTable.AddExpressionColumn("BATCH", "POnotFound", "String", "IsNull(PURCHASE_ORDER_OP_IT, 'Y')")
+	F.Data.DataTable.AddExpressionColumn("BATCH", "InvoiceRepeat", "String", "IIF(INVOICE = '', 'N', 'Y')")
+	F.Data.DataTable.AddExpressionColumn("BATCH", "OpenQtyOnPO", "String", "IIF(QTY_OPEN_ONPO > 0, 'Y', 'N')" )
+	
+	
+	F.Data.DataView.Create("BATCH", "dvBatchOut")
+	F.Intrinsic.Control.If(V.DataView.BATCH!dvBATCH.RowCount, >, 0)
+		'then we need to export this
+		V.Local.sDate.Set(V.Ambient.Date)
+		F.Intrinsic.String.Format(V.Local.sDate,"YYYYMMDD",V.Local.sDate)
+		V.Local.sTime.Set(V.Ambient.Time)
+		F.Intrinsic.String.Format(V.Local.sTime,"hhmmss",V.Local.sTime)
+		F.Intrinsic.String.Build("I:\Infisy\Custom\5160\AP_Import\Log\AP{0}{1}.csv",V.Local.sDate, V.Local.sTime, V.Local.sFilePath)
+	''''''''''for testing
+		'F.Intrinsic.String.Build("{0}\Custom\5160\AP_Import\Log\AP{1}{2}.csv",V.Caller.GlobalDir,  V.Local.sDate,V.Local.sTime, V.Local.sFilePath)
+		F.Data.DataView.ToString("BATCH", "dvBATCH",  ",", V.Ambient.NewLine, V.Local.sRet)
+		'add titles back in
+		V.Local.sTitles.Set(Variable.DataTable.BATCH.FieldNames)
+		F.Intrinsic.String.Replace(V.Local.sTitles, "*!*", " , ", V.Local.sTitles)
+		F.Intrinsic.String.Build("{0}{1}{2}", V.Local.sTitles, V.Ambient.NewLine, V.Local.sRet, V.Local.sRet)
+		F.Intrinsic.File.String2File(V.Local.sFilePath,V.Local.sRet)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Task.ShellExec(0,"",V.Local.sFilePath,"","",1)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+   F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.OutputFile.End
+
+Program.Sub.UploadBatch.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+	V.Local.sRet.Declare(String)
+	V.Local.sFilePath.Declare(String)
+	V.Local.sDate.Declare(String)
+	V.Local.sParams.Declare(string)
+
+	'Add Batch Date
+	V.Local.sDate.Set(V.Screen.Form!dtp1.Value)
+	F.Intrinsic.String.Format(V.Local.sDate,"MMDDYY",V.Local.sDate)
+	F.Data.DataTable.AddColumn("BATCH", "BatchDate", "String", V.Local.sDate)
+	V.Local.sDate.Set(V.Ambient.Date)
+	F.Intrinsic.String.Format(V.Local.sDate,"YYYYMMDD",V.Local.sDate)
+
+	F.Data.DataTable.AddColumn("BATCH", "GL_ACCOUNT_LINE", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "UnitPrice", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "INVOICE-DUE-DATE", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "TAXABLE_FLAG", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "TAX_CODE", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "BOOK_SELF_ACCESS_TAX", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "WORK_ORDER", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "WORK_SUFF", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "WORK_SEQ", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "BRANCH", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "PURCHASE_ORDER_UNIT _OF_MEASURE", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "BUYER", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "VOUCHER", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "VAT_TAX_RULE", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "PARTLOCATION", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "COST-TYPE", "String", "")
+	F.Data.DataTable.AddColumn("BATCH", "INVOICE-NOTES", "String", "")
+	
+	F.Data.DataView.Create("BATCH", "dvBatchUp", 22, "PriceMismatch = 'N' AND POnotFound<> '' AND InvoiceRepeat = 'N' AND OpenQtyOnPO = 'N'", "")
+	
+	F.Data.DataView.ToString("BATCH", "dvBatchUp", "BatchDate*!*VENDOR*!*INVOICENO*!*InvoiceDate*!*INVOICE-DUE-DATE*!*BalanceDue*!*GL_ACCOUNT_LINE*!*TAXABLE_FLAG*!*TAX_CODE*!*BOOK_SELF_ACCESS_TAX*!*WORK_ORDER*!*WORK_SUFF*!*WORK_SEQ*!*BRANCH*!*POno*!*PO_LINE*!*PURCHASE_ORDER_UNIT _OF_MEASURE*!*RECEIVER*!*Qty*!*UnitPrice*!*BUYER*!*VOUCHER*!*VAT_TAX_RULE*!*PARTLOCATION*!*COST-TYPE*!*INVOICE-NOTES", "*!*", V.Ambient.NewLine, V.Local.sRet)
+	
+	F.Intrinsic.String.Concat(V.caller.FilesDir,"\APBATCH_INVACRNA.txt",V.Local.sFilePath)
+	F.Intrinsic.File.String2File(V.Local.sFilePath,V.Local.sRet)
+	
+	F.Intrinsic.String.Build("APBATCH_INVACR{0}.txt!*!{1}!*!{2}!*!{3}","NA",V.Caller.User,V.Screen.Form!txtBatch.Text,V.Local.sDate,V.Local.sParams)
+		'F.Intrinsic.Debug.CallWrapperDebugEnable
+	F.Global.General.CallWrapperSync(2110,V.Local.sParams)
+
+
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+   F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.UploadBatch.End
+
+Program.Sub.Form_UnLoad.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+GUI.Form..Visible(False)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+   Function.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
